@@ -73,6 +73,7 @@ import androidx.compose.material.icons.rounded.Save
 import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
@@ -84,11 +85,15 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.Typography
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -296,8 +301,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startServiceSafely(intent: Intent) {
-        if (!nfcLauncher.isActivated) {
-            nfcLauncher.showActivationDialog()
+        if (!nfcLauncher.ensureActivated()) {
             return
         }
         if (!hasLocationPermissionState.value) {
@@ -568,6 +572,7 @@ private fun HomeScreen(
     var showStatusDialog by remember { mutableStateOf(false) }
 
     Scaffold(
+        containerColor = MiuixSkin.Background,
         topBar = {
             TopAppBar(
                 title = {
@@ -575,6 +580,11 @@ private fun HomeScreen(
                         Text("去你的校园跑", fontWeight = FontWeight.Bold)
                     }
                 },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MiuixSkin.Background,
+                    titleContentColor = MiuixSkin.Text,
+                    actionIconContentColor = MiuixSkin.Text
+                ),
                 actions = {
                     PermissionDots(
                         hasLocationPermission = hasLocationPermission,
@@ -582,7 +592,10 @@ private fun HomeScreen(
                         onLongPress = { showStatusDialog = true }
                     )
                     Box {
-                        TextButton(onClick = { providerMenuExpanded = true }) {
+                        TextButton(
+                            onClick = { providerMenuExpanded = true },
+                            colors = ButtonDefaults.textButtonColors(contentColor = MiuixSkin.Primary)
+                        ) {
                             Text(mapProvider.label)
                         }
                         DropdownMenu(
@@ -607,7 +620,7 @@ private fun HomeScreen(
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0xFFF7F8FA))
+                .background(MiuixSkin.Background)
                 .padding(padding)
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -723,7 +736,7 @@ private fun StatusDot(ok: Boolean) {
     Box(
         modifier = Modifier
             .size(10.dp)
-            .background(if (ok) Color(0xFF1F9D55) else Color(0xFFD97706), CircleShape)
+            .background(if (ok) MiuixSkin.Success else MiuixSkin.Warning, CircleShape)
     )
 }
 
@@ -731,15 +744,15 @@ private fun StatusDot(ok: Boolean) {
 private fun CreditLine() {
     val uriHandler = LocalUriHandler.current
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("vibe coding by ", style = MaterialTheme.typography.labelMedium, color = Color(0xFF64748B))
+        Text("vibe coding by ", style = MaterialTheme.typography.labelMedium, color = MiuixSkin.TextMuted)
         Text(
             "Inklazy",
             style = MaterialTheme.typography.labelMedium,
-            color = Color(0xFF2F80ED),
+            color = MiuixSkin.Primary,
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.clickable { uriHandler.openUri("https://t.me/Inklazy") }
         )
-        Text(" & Codex", style = MaterialTheme.typography.labelMedium, color = Color(0xFF64748B))
+        Text(" & Codex", style = MaterialTheme.typography.labelMedium, color = MiuixSkin.TextMuted)
     }
 }
 
@@ -763,6 +776,18 @@ private fun FluidButton(
         modifier = modifier.fluidPressScale(interactionSource),
         enabled = enabled,
         interactionSource = interactionSource,
+        shape = MiuixSkin.ActionShape,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MiuixSkin.Primary,
+            contentColor = Color.White,
+            disabledContainerColor = MiuixSkin.DisabledContainer,
+            disabledContentColor = MiuixSkin.TextDisabled
+        ),
+        elevation = ButtonDefaults.buttonElevation(
+            defaultElevation = 0.dp,
+            pressedElevation = 0.dp,
+            disabledElevation = 0.dp
+        ),
         content = content
     )
 }
@@ -780,6 +805,14 @@ private fun FluidOutlinedButton(
         modifier = modifier.fluidPressScale(interactionSource),
         enabled = enabled,
         interactionSource = interactionSource,
+        shape = MiuixSkin.ActionShape,
+        border = BorderStroke(1.dp, if (enabled) MiuixSkin.Border else MiuixSkin.Border.copy(alpha = 0.55f)),
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = MiuixSkin.SurfaceElevated,
+            contentColor = MiuixSkin.Primary,
+            disabledContainerColor = MiuixSkin.DisabledContainer,
+            disabledContentColor = MiuixSkin.TextDisabled
+        ),
         content = content
     )
 }
@@ -789,17 +822,17 @@ private fun FluidCircleButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    containerColor: Color = Color.White,
-    contentColor: Color = Color(0xFF1F2937),
+    containerColor: Color = MiuixSkin.SurfaceFloating,
+    contentColor: Color = MiuixSkin.Text,
     content: @Composable () -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     Surface(
-        color = if (enabled) containerColor else Color(0xFFE5E7EB),
-        contentColor = if (enabled) contentColor else Color(0xFF98A2B3),
+        color = if (enabled) containerColor else MiuixSkin.DisabledContainer,
+        contentColor = if (enabled) contentColor else MiuixSkin.TextDisabled,
         shape = CircleShape,
-        tonalElevation = 2.dp,
-        shadowElevation = 3.dp,
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp,
         modifier = modifier
             .fluidPressScale(interactionSource)
             .clickable(
@@ -816,6 +849,63 @@ private fun FluidCircleButton(
 }
 
 @Composable
+private fun MiuixCard(
+    modifier: Modifier = Modifier,
+    containerColor: Color = MiuixSkin.Surface,
+    content: @Composable () -> Unit
+) {
+    Card(
+        modifier = modifier,
+        shape = MiuixSkin.CardShape,
+        colors = CardDefaults.cardColors(containerColor = containerColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        content()
+    }
+}
+
+@Composable
+private fun MiuixTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    singleLine: Boolean = false,
+    minLines: Int = 1,
+    maxLines: Int = Int.MAX_VALUE
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        enabled = enabled,
+        keyboardOptions = keyboardOptions,
+        singleLine = singleLine,
+        minLines = minLines,
+        maxLines = maxLines,
+        shape = MiuixSkin.FieldShape,
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = MiuixSkin.Primary,
+            unfocusedBorderColor = Color.Transparent,
+            disabledBorderColor = Color.Transparent,
+            focusedContainerColor = MiuixSkin.SurfaceContainer,
+            unfocusedContainerColor = MiuixSkin.SurfaceContainer,
+            disabledContainerColor = MiuixSkin.DisabledContainer,
+            focusedLabelColor = MiuixSkin.Primary,
+            unfocusedLabelColor = MiuixSkin.TextMuted,
+            disabledLabelColor = MiuixSkin.TextDisabled,
+            focusedTextColor = MiuixSkin.Text,
+            unfocusedTextColor = MiuixSkin.Text,
+            disabledTextColor = MiuixSkin.TextDisabled,
+            cursorColor = MiuixSkin.Primary
+        ),
+        modifier = modifier
+    )
+}
+
+@Composable
 private fun PointSimulationCard(
     latInput: String,
     lngInput: String,
@@ -826,22 +916,22 @@ private fun PointSimulationCard(
     onStartPoint: () -> Unit,
     onStop: () -> Unit
 ) {
-    Card(shape = RoundedCornerShape(8.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+    MiuixCard {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("定点模拟", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(
+                MiuixTextField(
                     value = latInput,
                     onValueChange = onLatChange,
-                    label = { Text("纬度 WGS-84") },
+                    label = "纬度 WGS-84",
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.weight(1f),
                     singleLine = true
                 )
-                OutlinedTextField(
+                MiuixTextField(
                     value = lngInput,
                     onValueChange = onLngChange,
-                    label = { Text("经度 WGS-84") },
+                    label = "经度 WGS-84",
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.weight(1f),
                     singleLine = true
@@ -884,14 +974,14 @@ private fun NfcLauncherCard(
 ) {
     var showEditDialog by remember { mutableStateOf(false) }
 
-    Card(shape = RoundedCornerShape(8.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+    MiuixCard {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("支付宝 NFC 跳转", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Text(
                         if (isActivated) statusText else "设备未验证",
-                        color = if (isActivated) Color(0xFF64748B) else Color(0xFFB45309),
+                        color = if (isActivated) MiuixSkin.TextMuted else MiuixSkin.Warning,
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
@@ -900,7 +990,7 @@ private fun NfcLauncherCard(
 
             Text(
                 currentLink,
-                color = Color(0xFF64748B),
+                color = MiuixSkin.TextMuted,
                 style = MaterialTheme.typography.bodySmall,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -937,14 +1027,14 @@ private fun NfcLauncherCard(
             title = { Text("更新 NFC 链接") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(
+                    MiuixTextField(
                         value = linkText,
                         onValueChange = { linkText = it },
-                        label = { Text("支付宝 NFC 链接") },
+                        label = "支付宝 NFC 链接",
                         minLines = 3,
                         maxLines = 5
                     )
-                    Text("留空保存会恢复默认链接；扫描到新的 NFC 链接时仍会弹窗确认保存。", color = Color(0xFF64748B), style = MaterialTheme.typography.bodySmall)
+                    Text("留空保存会恢复默认链接；扫描到新的 NFC 链接时仍会弹窗确认保存。", color = MiuixSkin.TextMuted, style = MaterialTheme.typography.bodySmall)
                 }
             },
             confirmButton = {
@@ -979,7 +1069,7 @@ private fun RouteSimulationCard(
     onStop: () -> Unit,
     onDeleteRoute: (SavedRoute) -> Unit
 ) {
-    Card(shape = RoundedCornerShape(8.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+    MiuixCard {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("路线模拟", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
@@ -1050,10 +1140,10 @@ private fun SpeedSelector(
                     .height(56.dp)
             )
         }
-        OutlinedTextField(
+        MiuixTextField(
             value = speedText,
             onValueChange = onSpeedTextChange,
-            label = { Text("m/s") },
+            label = "m/s",
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             singleLine = true,
             modifier = Modifier
@@ -1073,10 +1163,10 @@ private fun SpeedPresetButton(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     Surface(
-        color = if (selected) Color(0xFFE3F2FD) else Color.White,
-        contentColor = if (selected) Color(0xFF1565C0) else Color(0xFF334155),
-        shape = RoundedCornerShape(8.dp),
-        border = BorderStroke(1.dp, if (selected) Color(0xFF90CAF9) else Color(0xFFD0D5DD)),
+        color = if (selected) MiuixSkin.PrimarySoft else MiuixSkin.SurfaceContainer,
+        contentColor = if (selected) MiuixSkin.Primary else MiuixSkin.Text,
+        shape = MiuixSkin.FieldShape,
+        border = BorderStroke(1.dp, if (selected) MiuixSkin.Primary.copy(alpha = 0.35f) else Color.Transparent),
         modifier = modifier
             .fluidPressScale(interactionSource)
             .clickable(
@@ -1101,16 +1191,16 @@ private fun StatusRow(label: String, value: String, ok: Boolean) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         StatusDot(ok)
         Spacer(Modifier.width(8.dp))
-        Text(label, modifier = Modifier.weight(1f), color = Color(0xFF526070))
+        Text(label, modifier = Modifier.weight(1f), color = MiuixSkin.TextMuted)
         Text(value, fontWeight = FontWeight.SemiBold)
     }
 }
 
 @Composable
 private fun EmptyRoutesCard(onOpenEditor: () -> Unit) {
-    Card(shape = RoundedCornerShape(8.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC))) {
+    MiuixCard(containerColor = MiuixSkin.SurfaceContainer) {
         Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(Icons.Rounded.LocationOn, contentDescription = null, tint = Color(0xFF2F80ED), modifier = Modifier.size(32.dp))
+            Icon(Icons.Rounded.LocationOn, contentDescription = null, tint = MiuixSkin.Primary, modifier = Modifier.size(32.dp))
             Spacer(Modifier.height(8.dp))
             Text("还没有保存路线")
             Spacer(Modifier.height(12.dp))
@@ -1132,15 +1222,15 @@ private fun RouteCard(
     val distance = RouteMath.totalDistanceMeters(route.points, closeLoop = route.closeLoop)
     val loopText = if (route.closeLoop) "首尾相连 · ${route.loopCount} 次" else "往返"
 
-    Card(shape = RoundedCornerShape(8.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC))) {
+    MiuixCard(containerColor = MiuixSkin.SurfaceContainer) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(route.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text("${route.points.size} 个点 · ${formatDistance(distance)} · $loopText", color = Color(0xFF64748B))
+                    Text("${route.points.size} 个点 · ${formatDistance(distance)} · $loopText", color = MiuixSkin.TextMuted)
                 }
                 IconButton(onClick = { confirmDelete = true }) {
-                    Icon(Icons.Rounded.Delete, contentDescription = "删除", tint = Color(0xFFB42318))
+                    Icon(Icons.Rounded.Delete, contentDescription = "删除", tint = MiuixSkin.Danger)
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1166,7 +1256,7 @@ private fun RouteCard(
                     confirmDelete = false
                     onDelete()
                 }) {
-                    Text("删除", color = Color(0xFFB42318))
+                    Text("删除", color = MiuixSkin.Danger)
                 }
             },
             dismissButton = {
@@ -1266,8 +1356,8 @@ private fun RouteEditorScreen(
             val center = templateCenter
             if (templateEnabled && center != null) {
                 TrackTemplateControls(
-                    onRotateLeft = { templateRotation -= 5.0 },
-                    onRotateRight = { templateRotation += 5.0 },
+                    onRotateLeft = { templateRotation += 5.0 },
+                    onRotateRight = { templateRotation -= 5.0 },
                     onScaleUp = {
                         templateLength = (templateLength * 1.08).coerceAtMost(400.0)
                         templateWidth = (templateWidth * 1.08).coerceAtMost(160.0)
@@ -1336,14 +1426,14 @@ private fun RouteEditorScreen(
             title = { Text("保存路线") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedTextField(
+                    MiuixTextField(
                         value = name,
                         onValueChange = { name = it },
-                        label = { Text("路线名称") },
+                        label = "路线名称",
                         singleLine = true
                     )
-                    Text(if (closeLoop) "模式：首尾相连循环 ${loopCountText.toIntOrNull() ?: 1} 次" else "模式：非闭环往返", color = Color(0xFF64748B))
-                    Text("同名路线会被覆盖。", color = Color(0xFF64748B), style = MaterialTheme.typography.bodySmall)
+                    Text(if (closeLoop) "模式：首尾相连循环 ${loopCountText.toIntOrNull() ?: 1} 次" else "模式：非闭环往返", color = MiuixSkin.TextMuted)
+                    Text("同名路线会被覆盖。", color = MiuixSkin.TextMuted, style = MaterialTheme.typography.bodySmall)
                 }
             },
             confirmButton = {
@@ -1375,10 +1465,10 @@ private fun BoxScope.TrackTemplateControls(
     onClose: () -> Unit
 ) {
     Surface(
-        color = Color.White,
-        shape = RoundedCornerShape(22.dp),
-        tonalElevation = 2.dp,
-        shadowElevation = 3.dp,
+        color = MiuixSkin.SurfaceFloating,
+        shape = MiuixSkin.FloatingShape,
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp,
         modifier = Modifier
             .padding(top = 74.dp, end = 12.dp)
             .align(Alignment.TopEnd)
@@ -1389,22 +1479,22 @@ private fun BoxScope.TrackTemplateControls(
             verticalAlignment = Alignment.CenterVertically
         ) {
             FluidCircleButton(onClick = onRotateLeft, modifier = Modifier.size(38.dp)) {
-                Icon(Icons.AutoMirrored.Rounded.RotateLeft, contentDescription = "向左旋转", tint = Color(0xFF334155), modifier = Modifier.size(18.dp))
+                Icon(Icons.AutoMirrored.Rounded.RotateLeft, contentDescription = "向左旋转", tint = MiuixSkin.Text, modifier = Modifier.size(18.dp))
             }
             FluidCircleButton(onClick = onRotateRight, modifier = Modifier.size(38.dp)) {
-                Icon(Icons.AutoMirrored.Rounded.RotateRight, contentDescription = "向右旋转", tint = Color(0xFF334155), modifier = Modifier.size(18.dp))
+                Icon(Icons.AutoMirrored.Rounded.RotateRight, contentDescription = "向右旋转", tint = MiuixSkin.Text, modifier = Modifier.size(18.dp))
             }
             FluidCircleButton(onClick = onScaleDown, modifier = Modifier.size(38.dp)) {
-                Icon(Icons.Rounded.Remove, contentDescription = "缩小", tint = Color(0xFF334155), modifier = Modifier.size(18.dp))
+                Icon(Icons.Rounded.Remove, contentDescription = "缩小", tint = MiuixSkin.Text, modifier = Modifier.size(18.dp))
             }
             FluidCircleButton(onClick = onScaleUp, modifier = Modifier.size(38.dp)) {
-                Icon(Icons.Rounded.Add, contentDescription = "放大", tint = Color(0xFF334155), modifier = Modifier.size(18.dp))
+                Icon(Icons.Rounded.Add, contentDescription = "放大", tint = MiuixSkin.Text, modifier = Modifier.size(18.dp))
             }
             FluidCircleButton(onClick = onMoveToCenter, modifier = Modifier.size(38.dp)) {
-                Icon(Icons.Rounded.MyLocation, contentDescription = "移动到准星", tint = Color(0xFF2F80ED), modifier = Modifier.size(18.dp))
+                Icon(Icons.Rounded.MyLocation, contentDescription = "移动到准星", tint = MiuixSkin.Primary, modifier = Modifier.size(18.dp))
             }
             FluidCircleButton(onClick = onClose, modifier = Modifier.size(38.dp)) {
-                Icon(Icons.Rounded.Close, contentDescription = "关闭模板", tint = Color(0xFFB42318), modifier = Modifier.size(18.dp))
+                Icon(Icons.Rounded.Close, contentDescription = "关闭模板", tint = MiuixSkin.Danger, modifier = Modifier.size(18.dp))
             }
         }
     }
@@ -1429,10 +1519,10 @@ private fun RouteEditorCompactBar(
     onSave: () -> Unit
 ) {
     Surface(
-        color = Color.White,
-        shape = RoundedCornerShape(8.dp),
-        tonalElevation = 2.dp,
-        shadowElevation = 3.dp,
+        color = MiuixSkin.SurfaceFloating,
+        shape = MiuixSkin.CardShape,
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp,
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -1442,12 +1532,12 @@ private fun RouteEditorCompactBar(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("$pointCount 点 · $distanceText", fontWeight = FontWeight.SemiBold)
-                    Text(if (drawMode) "正在绘制：手指拖过地图生成曲线" else "关闭绘制后可正常拖动地图", color = Color(0xFF64748B), style = MaterialTheme.typography.labelSmall)
+                    Text(if (drawMode) "正在绘制：手指拖过地图生成曲线" else "关闭绘制后可正常拖动地图", color = MiuixSkin.TextMuted, style = MaterialTheme.typography.labelSmall)
                 }
-                OutlinedTextField(
+                MiuixTextField(
                     value = loopCountText,
                     onValueChange = onLoopCountTextChange,
-                    label = { Text("圈数") },
+                    label = "圈数",
                     enabled = closeLoop,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
@@ -1511,10 +1601,10 @@ private fun SpeedyToolButton(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     Surface(
-        color = if (selected) Color(0xFFE3F2FD) else Color.White,
-        contentColor = if (selected) Color(0xFF1565C0) else Color(0xFF334155),
-        shape = RoundedCornerShape(8.dp),
-        border = BorderStroke(1.dp, if (selected) Color(0xFF90CAF9) else Color(0xFFD0D5DD)),
+        color = if (selected) MiuixSkin.PrimarySoft else MiuixSkin.SurfaceContainer,
+        contentColor = if (selected) MiuixSkin.Primary else MiuixSkin.Text,
+        shape = MiuixSkin.FieldShape,
+        border = BorderStroke(1.dp, if (selected) MiuixSkin.Primary.copy(alpha = 0.35f) else Color.Transparent),
         modifier = modifier
             .height(44.dp)
             .fluidPressScale(interactionSource)
@@ -1595,7 +1685,7 @@ private fun MapSelectionScreen(
             Icon(
                 Icons.Rounded.AddLocationAlt,
                 contentDescription = null,
-                tint = Color(0xFF2F80ED),
+                tint = MiuixSkin.Primary,
                 modifier = Modifier
                     .align(Alignment.Center)
                     .size(44.dp)
@@ -1621,10 +1711,10 @@ private fun MapSelectionScreen(
                 Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "返回")
             }
             Surface(
-                color = Color.White,
-                shape = RoundedCornerShape(22.dp),
-                tonalElevation = 2.dp,
-                shadowElevation = 2.dp,
+                color = MiuixSkin.SurfaceFloating,
+                shape = MiuixSkin.FloatingShape,
+                tonalElevation = 0.dp,
+                shadowElevation = 0.dp,
                 modifier = Modifier.weight(1f)
             ) {
                 Text(
@@ -1644,8 +1734,8 @@ private fun MapSelectionScreen(
                 }
                 FluidCircleButton(
                     onClick = { satelliteEnabled = !satelliteEnabled },
-                    containerColor = if (satelliteEnabled) Color(0xFF1D4ED8) else Color.White,
-                    contentColor = if (satelliteEnabled) Color.White else Color(0xFF2F80ED),
+                    containerColor = if (satelliteEnabled) MiuixSkin.Primary else MiuixSkin.SurfaceFloating,
+                    contentColor = if (satelliteEnabled) Color.White else MiuixSkin.Primary,
                     modifier = Modifier.size(44.dp)
                 ) {
                     Text(if (satelliteEnabled) "2D" else "卫星", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
@@ -1659,7 +1749,7 @@ private fun MapSelectionScreen(
                     },
                     modifier = Modifier.size(44.dp)
                 ) {
-                    Icon(Icons.Rounded.MyLocation, contentDescription = "定位到当前位置", tint = Color(0xFF2F80ED))
+                    Icon(Icons.Rounded.MyLocation, contentDescription = "定位到当前位置", tint = MiuixSkin.Primary)
                 }
             }
         }
@@ -1672,7 +1762,7 @@ private fun MapSelectionScreen(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xF7F7F8FA))))
+                .background(Brush.verticalGradient(listOf(Color.Transparent, MiuixSkin.Background.copy(alpha = 0.96f))))
                 .navigationBarsPadding()
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -1720,7 +1810,7 @@ private fun renderRoute(
     controller.clear()
     if (points.size >= 2) {
         val visiblePoints = if (closeLoopPreview) points + points.first() else points
-        controller.addPolyline(visiblePoints, android.graphics.Color.parseColor("#2F80ED"), 8f)
+        controller.addPolyline(visiblePoints, android.graphics.Color.parseColor(MiuixSkin.PrimaryHex), 8f)
     }
     points.forEachIndexed { index, point ->
         val kind = when (index) {
@@ -1731,7 +1821,7 @@ private fun renderRoute(
         controller.addMarker(point, "${index + 1}", kind)
     }
     if (previewPoints.size >= 2) {
-        controller.addPolyline(previewPoints + previewPoints.first(), android.graphics.Color.parseColor("#12B886"), 12f)
+        controller.addPolyline(previewPoints + previewPoints.first(), android.graphics.Color.parseColor(MiuixSkin.SuccessHex), 12f)
     }
 }
 
@@ -1793,13 +1883,59 @@ private fun offsetMeters(origin: RoutePoint, eastMeters: Double, northMeters: Do
 
 @Composable
 private fun CampusRunnerTheme(content: @Composable () -> Unit) {
+    val baseTypography = Typography()
     MaterialTheme(
         colorScheme = lightColorScheme(
-            primary = Color(0xFF2F80ED),
-            secondary = Color(0xFF12B886),
-            surface = Color.White,
-            background = Color(0xFFF7F8FA)
+            primary = MiuixSkin.Primary,
+            onPrimary = Color.White,
+            primaryContainer = MiuixSkin.PrimarySoft,
+            secondary = MiuixSkin.Success,
+            background = MiuixSkin.Background,
+            onBackground = MiuixSkin.Text,
+            surface = MiuixSkin.Surface,
+            onSurface = MiuixSkin.Text,
+            surfaceVariant = MiuixSkin.SurfaceContainer,
+            outline = MiuixSkin.Border,
+            error = MiuixSkin.Danger
+        ),
+        typography = baseTypography.copy(
+            titleLarge = baseTypography.titleLarge.copy(fontWeight = FontWeight.Bold),
+            titleMedium = baseTypography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+            labelLarge = baseTypography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
+        ),
+        shapes = Shapes(
+            extraSmall = RoundedCornerShape(10.dp),
+            small = RoundedCornerShape(14.dp),
+            medium = RoundedCornerShape(20.dp),
+            large = RoundedCornerShape(28.dp),
+            extraLarge = RoundedCornerShape(32.dp)
         ),
         content = content
     )
+}
+
+private object MiuixSkin {
+    const val PrimaryHex = "#3482FF"
+    const val SuccessHex = "#36D167"
+
+    val Primary = Color(0xFF3482FF)
+    val PrimarySoft = Color(0xFFEAF2FF)
+    val Success = Color(0xFF36D167)
+    val Warning = Color(0xFFFFA726)
+    val Danger = Color(0xFFFF4D4F)
+    val Background = Color(0xFFF4F6FB)
+    val Surface = Color(0xFFFFFFFF)
+    val SurfaceElevated = Color(0xFFFDFEFF)
+    val SurfaceFloating = Color(0xF4FFFFFF)
+    val SurfaceContainer = Color(0xFFF0F3F9)
+    val Border = Color(0xFFDDE3EE)
+    val Text = Color(0xFF111827)
+    val TextMuted = Color(0xFF667085)
+    val TextDisabled = Color(0xFF98A2B3)
+    val DisabledContainer = Color(0xFFE8ECF3)
+
+    val CardShape = RoundedCornerShape(24.dp)
+    val FieldShape = RoundedCornerShape(16.dp)
+    val ActionShape = RoundedCornerShape(18.dp)
+    val FloatingShape = RoundedCornerShape(26.dp)
 }

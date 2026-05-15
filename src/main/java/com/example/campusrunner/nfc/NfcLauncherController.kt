@@ -48,6 +48,8 @@ class NfcLauncherController(
     private var nfcDialog: AlertDialog? = null
     private var activationDialog: AlertDialog? = null
     private var lastNfcToastAt = 0L
+    @Volatile
+    private var activationCheckRunning = false
 
     val isActivated: Boolean
         get() = prefs.getBoolean(KEY_ACTIVATION_VERIFIED, false)
@@ -67,11 +69,7 @@ class NfcLauncherController(
     }
 
     fun onResume() {
-        if (isActivated) {
-            enableNfcReaderMode()
-        } else {
-            showActivationDialog()
-        }
+        verifyActivationStatus()
         onStateChanged()
     }
 
@@ -197,7 +195,11 @@ class NfcLauncherController(
         activationDialog?.show()
     }
 
-    private fun ensureActivated(): Boolean {
+    fun ensureActivated(): Boolean {
+        if (activationCheckRunning) {
+            toast("正在校验设备授权...")
+            return false
+        }
         if (isActivated) return true
         showActivationDialog()
         return false
@@ -353,7 +355,8 @@ class NfcLauncherController(
     }
 
     private fun verifyActivationStatus() {
-        if (isActivated) return
+        if (activationCheckRunning) return
+        activationCheckRunning = true
         Thread {
             try {
                 val request = JSONObject()
@@ -364,13 +367,27 @@ class NfcLauncherController(
                     markActivated(response.optString("verifiedAt", ""))
                     activity.runOnUiThread {
                         enableNfcReaderMode()
+                        activationDialog?.dismiss()
                         onStateChanged()
                     }
                 } else {
-                    activity.runOnUiThread { showActivationDialog() }
+                    clearActivation()
+                    activity.runOnUiThread {
+                        disableNfcReaderMode()
+                        onStateChanged()
+                        showActivationDialog()
+                    }
                 }
-            } catch (_: Exception) {
-                activity.runOnUiThread { showActivationDialog() }
+            } catch (e: Exception) {
+                clearActivation()
+                activity.runOnUiThread {
+                    disableNfcReaderMode()
+                    onStateChanged()
+                    showActivationDialog()
+                    toast("网络校验失败: ${readableError(e)}")
+                }
+            } finally {
+                activationCheckRunning = false
             }
         }.start()
     }
@@ -379,6 +396,13 @@ class NfcLauncherController(
         prefs.edit()
             .putBoolean(KEY_ACTIVATION_VERIFIED, true)
             .putString(KEY_ACTIVATION_VERIFIED_AT, verifiedAt)
+            .apply()
+    }
+
+    private fun clearActivation() {
+        prefs.edit()
+            .remove(KEY_ACTIVATION_VERIFIED)
+            .remove(KEY_ACTIVATION_VERIFIED_AT)
             .apply()
     }
 
