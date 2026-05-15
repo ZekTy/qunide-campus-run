@@ -568,7 +568,14 @@ class NfcLauncherController(
         private const val KEY_ACTIVATION_VERIFIED = "activation_verified"
         private const val KEY_ACTIVATION_VERIFIED_AT = "activation_verified_at"
         private const val NETWORK_TIMEOUT_MS = 12000
-        private val SOFTWARE_AGREEMENT = """
+        fun hasExistingInstallState(context: Context): Boolean {
+            return context
+                .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .all
+                .isNotEmpty()
+        }
+
+        val SOFTWARE_AGREEMENT = """
             软件使用协议与免责声明
 
             欢迎使用本软件。请用户在使用前仔细阅读并充分理解本协议内容。用户安装、启动、购买激活码或使用本软件，即视为已阅读、理解并同意本协议。

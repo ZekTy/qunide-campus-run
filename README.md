@@ -1,14 +1,27 @@
-# 去你的校园跑
+# RouteVerge
 
-Android mock-location route simulator with an optional NFC Alipay launch helper and Cloudflare Worker based activation flow.
+RouteVerge is an Android utility for local location simulation, route planning, route persistence, and route playback in authorized testing environments.
 
-## Notice
+## Intended Use
 
-This project is published for technical discussion, learning, research, and authorized testing only. Do not use it for illegal activity, platform abuse, violating third-party rights, or disrupting services. You are responsible for your own use and consequences.
+This project is provided for lawful and authorized scenarios only, such as:
+
+- Android location feature development and debugging
+- Map SDK integration tests
+- Route planning and playback experiments
+- Personal learning, research, and reproducible test data
+
+RouteVerge is not affiliated with, endorsed by, or authorized by any school, employer, attendance system, sports platform, campus service, payment platform, or other third-party service.
+
+## Compliance Notice
+
+Do not use this project to misrepresent location, bypass attendance or assessment rules, falsify activity records, abuse third-party platforms, violate user agreements, disrupt services, or infringe the rights of others.
+
+The application only provides local device-side tools. It does not provide third-party account login, data upload, platform API integration, cracking, verification bypass, or remote data modification features. Users are solely responsible for complying with applicable laws, institutional policies, and third-party service terms.
 
 ## Configuration
 
-Copy `local.properties.example` to `local.properties`:
+Copy `local.properties.example` to `local.properties` and provide your own SDK path and map keys:
 
 ```properties
 sdk.dir=C:\\Android\\Sdk
@@ -16,14 +29,14 @@ AMAP_API_KEY=replace-with-your-amap-key
 GOOGLE_MAPS_API_KEY=replace-with-your-google-maps-key
 ```
 
-Set activation configuration in `gradle.properties` or pass Gradle properties at build time:
+Optional activation-related values can be supplied through `gradle.properties` or Gradle properties at build time:
 
 ```properties
 activationBaseUrl=https://your-worker.example.workers.dev
 telegramBotUsername=your_bot_username
 ```
 
-Never commit real API keys, signing keys, APKs, or `local.properties`.
+Never commit real API keys, signing keys, APK files, generated build outputs, or `local.properties`.
 
 ## Build
 
@@ -32,10 +45,6 @@ Never commit real API keys, signing keys, APKs, or `local.properties`.
 ```
 
 For release builds, create and store your own Android signing key outside the repository. Future app updates must be signed with the same key.
-
-## Worker
-
-The activation backend is published separately as `nfc-activation-worker`. Deploy it first, then configure `activationBaseUrl` and `telegramBotUsername` here.
 
 ## License
 

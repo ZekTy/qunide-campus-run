@@ -42,15 +42,18 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.RotateLeft
@@ -136,6 +139,9 @@ import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
 
+private const val STARTUP_AGREEMENT_PREFS_NAME = "startup_agreement_prefs"
+private const val KEY_INITIAL_LAUNCH_HANDLED = "initial_launch_handled"
+
 class MainActivity : ComponentActivity() {
     private lateinit var repository: RouteRepository
     private lateinit var userSettings: UserSettings
@@ -156,11 +162,16 @@ class MainActivity : ComponentActivity() {
     private var nfcActivatedState = mutableStateOf(false)
     private var nfcStatusState = mutableStateOf("")
     private var nfcLinkState = mutableStateOf("")
+    private var startupAgreementVisibleState = mutableStateOf(false)
+    private var skipFirstResumeAgreement = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         repository = RouteRepository(this)
         userSettings = UserSettings(this)
+        val showStartupAgreement = shouldShowStartupAgreement(savedInstanceState)
+        startupAgreementVisibleState.value = showStartupAgreement
+        skipFirstResumeAgreement = true
         nfcLauncher = NfcLauncherController(this, ::refreshNfcState)
         routesState.value = repository.getRoutes()
         mapProviderState.value = userSettings.mapProvider
@@ -199,6 +210,12 @@ class MainActivity : ComponentActivity() {
                     onSaveRoute = ::saveRoute,
                     onLocateMe = ::lastKnownRoutePoint
                 )
+                if (startupAgreementVisibleState.value) {
+                    StartupAgreementDialog(
+                        onAccept = { startupAgreementVisibleState.value = false },
+                        onExit = { finish() }
+                    )
+                }
             }
         }
     }
@@ -207,11 +224,31 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         refreshState()
         nfcLauncher.onResume()
+        if (skipFirstResumeAgreement) {
+            skipFirstResumeAgreement = false
+        } else if (shouldShowStartupAgreement(null)) {
+            startupAgreementVisibleState.value = true
+        }
     }
 
     override fun onPause() {
         nfcLauncher.onPause()
         super.onPause()
+    }
+
+    private fun shouldShowStartupAgreement(savedInstanceState: Bundle?): Boolean {
+        if (savedInstanceState != null) return false
+
+        val prefs = getSharedPreferences(STARTUP_AGREEMENT_PREFS_NAME, Context.MODE_PRIVATE)
+        val initialLaunchHandled = prefs.getBoolean(KEY_INITIAL_LAUNCH_HANDLED, false)
+        val isFreshInstallFirstLaunch = !initialLaunchHandled &&
+                !NfcLauncherController.hasExistingInstallState(this)
+
+        if (!initialLaunchHandled) {
+            prefs.edit().putBoolean(KEY_INITIAL_LAUNCH_HANDLED, true).apply()
+        }
+
+        return !isFreshInstallFirstLaunch
     }
 
     private fun requestRuntimePermissions() {
@@ -708,6 +745,39 @@ private fun HomeScreen(
             }
         )
     }
+}
+
+@Composable
+private fun StartupAgreementDialog(
+    onAccept: () -> Unit,
+    onExit: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = {},
+        title = { Text("软件使用协议与免责声明") },
+        text = {
+            val scrollState = rememberScrollState()
+            Text(
+                text = NfcLauncherController.SOFTWARE_AGREEMENT,
+                modifier = Modifier
+                    .heightIn(max = 420.dp)
+                    .verticalScroll(scrollState),
+                color = MiuixSkin.TextMuted,
+                style = MaterialTheme.typography.bodySmall,
+                lineHeight = MaterialTheme.typography.bodySmall.lineHeight
+            )
+        },
+        confirmButton = {
+            Button(onClick = onAccept) {
+                Text("确认并进入")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onExit) {
+                Text("退出")
+            }
+        }
+    )
 }
 
 @OptIn(ExperimentalFoundationApi::class)
