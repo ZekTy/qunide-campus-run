@@ -1,0 +1,11 @@
+# Copy this file to local.properties and fill values for your machine.
+sdk.dir=C:\\Android\\Sdk
+
+# Map SDK keys. You may also provide these as environment variables.
+AMAP_API_KEY=replace-with-your-amap-key
+GOOGLE_MAPS_API_KEY=replace-with-your-google-maps-key
+
+# Activation Worker and Telegram bot configuration.
+# You may also set activationBaseUrl and telegramBotUsername in gradle.properties.
+activationBaseUrl=https://your-worker.example.workers.dev
+telegramBotUsername=your_bot_username

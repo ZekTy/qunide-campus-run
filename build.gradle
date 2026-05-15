@@ -1,0 +1,97 @@
+plugins {
+    id "com.android.application" version "8.5.2"
+    id "org.jetbrains.kotlin.android" version "1.9.24"
+}
+
+def localProps = new Properties()
+def localPropsFile = rootProject.file("local.properties")
+if (localPropsFile.exists()) {
+    localPropsFile.withInputStream { localProps.load(it) }
+}
+
+static String escapedBuildConfigString(Object value) {
+    return value.toString().replace("\\", "\\\\").replace("\"", "\\\"")
+}
+
+def configValue = { String key ->
+    def env = System.getenv(key)
+    if (env != null && !env.trim().isEmpty()) {
+        return env.trim()
+    }
+    def prop = localProps.getProperty(key)
+    return prop == null ? "" : prop.trim()
+}
+
+def amapApiKey = configValue("AMAP_API_KEY")
+def googleMapsApiKey = configValue("GOOGLE_MAPS_API_KEY")
+def activationBaseUrl = project.findProperty("activationBaseUrl") ?: "https://your-worker.example.workers.dev"
+def telegramBotUsername = project.findProperty("telegramBotUsername") ?: "your_bot_username"
+
+android {
+    namespace "com.example.campusrunner"
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "com.example.campusrunnernfc"
+        minSdk 26
+        targetSdk 35
+        versionCode 4
+        versionName "1.3"
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        manifestPlaceholders = [
+                amapApiKey      : amapApiKey,
+                googleMapsApiKey: googleMapsApiKey
+        ]
+        buildConfigField "String", "AMAP_API_KEY", "\"${escapedBuildConfigString(amapApiKey)}\""
+        buildConfigField "String", "GOOGLE_MAPS_API_KEY", "\"${escapedBuildConfigString(googleMapsApiKey)}\""
+        buildConfigField "String", "ACTIVATION_BASE_URL", "\"${escapedBuildConfigString(activationBaseUrl)}\""
+        buildConfigField "String", "TELEGRAM_BOT_USERNAME", "\"${escapedBuildConfigString(telegramBotUsername)}\""
+    }
+
+    buildFeatures {
+        buildConfig true
+        compose true
+    }
+
+    composeOptions {
+        kotlinCompilerExtensionVersion "1.5.14"
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
+    packaging {
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
+    }
+}
+
+dependencies {
+    implementation platform("androidx.compose:compose-bom:2024.06.00")
+    implementation "androidx.activity:activity-compose:1.9.0"
+    implementation "androidx.compose.foundation:foundation"
+    implementation "androidx.compose.material:material-icons-extended"
+    implementation "androidx.compose.material3:material3"
+    implementation "androidx.compose.ui:ui"
+    implementation "androidx.compose.ui:ui-graphics"
+    implementation "androidx.compose.ui:ui-tooling-preview"
+    implementation "androidx.core:core-ktx:1.13.1"
+    implementation "androidx.fragment:fragment-ktx:1.8.5"
+    implementation "androidx.lifecycle:lifecycle-runtime-ktx:2.7.0"
+
+    implementation "com.amap.api:3dmap:10.0.600"
+    implementation "com.google.android.gms:play-services-maps:18.2.0"
+
+    debugImplementation "androidx.compose.ui:ui-tooling"
+
+    testImplementation "junit:junit:4.13.2"
+    testImplementation "org.json:json:20240303"
+}
