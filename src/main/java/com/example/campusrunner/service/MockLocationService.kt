@@ -279,7 +279,7 @@ class MockLocationService : Service() {
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
-            .setContentTitle("去你的校园跑")
+            .setContentTitle("RouteVerge")
             .setContentText(text)
             .setContentIntent(openPendingIntent)
             .setOngoing(true)

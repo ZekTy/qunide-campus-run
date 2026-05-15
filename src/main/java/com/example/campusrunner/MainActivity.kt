@@ -577,7 +577,7 @@ private fun HomeScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("去你的校园跑", fontWeight = FontWeight.Bold)
+                        Text("RouteVerge", fontWeight = FontWeight.Bold)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
