@@ -15,6 +15,7 @@ import android.nfc.NdefRecord
 import android.nfc.NfcAdapter
 import android.nfc.Tag
 import android.nfc.tech.Ndef
+import android.os.Build
 import android.provider.Settings
 import android.text.InputType
 import android.view.ViewGroup
@@ -68,11 +69,11 @@ class NfcLauncherController(
         }
 
     fun onCreate() {
-        verifyActivationStatus()
+        verifyActivationStatus(showDialogWhenMissing = true, clearOnNetworkFailure = false)
     }
 
     fun onResume() {
-        verifyActivationStatus()
+        verifyActivationStatus(showDialogWhenMissing = !isActivated, clearOnNetworkFailure = false)
         onStateChanged()
     }
 
@@ -243,11 +244,11 @@ class NfcLauncherController(
     }
 
     fun ensureActivated(): Boolean {
+        if (isActivated) return true
         if (activationCheckRunning) {
             toast("正在校验设备授权...")
             return false
         }
-        if (isActivated) return true
         showActivationDialog()
         return false
     }
@@ -381,7 +382,7 @@ class NfcLauncherController(
                 val request = JSONObject()
                     .put("deviceId", deviceId)
                     .put("code", code)
-                    .put("appVersion", BuildConfig.VERSION_NAME)
+                    .putClientInfo()
                 val response = postJson("/api/redeem", request)
                 if (response.optBoolean("ok", false)) {
                     markActivated(response.optString("verifiedAt", ""))
@@ -401,14 +402,17 @@ class NfcLauncherController(
         }.start()
     }
 
-    private fun verifyActivationStatus() {
+    private fun verifyActivationStatus(
+        showDialogWhenMissing: Boolean,
+        clearOnNetworkFailure: Boolean
+    ) {
         if (activationCheckRunning) return
         activationCheckRunning = true
         Thread {
             try {
                 val request = JSONObject()
                     .put("deviceId", deviceId)
-                    .put("appVersion", BuildConfig.VERSION_NAME)
+                    .putClientInfo()
                 val response = postJson("/api/status", request)
                 if (response.optBoolean("verified", false)) {
                     markActivated(response.optString("verifiedAt", ""))
@@ -422,21 +426,47 @@ class NfcLauncherController(
                     activity.runOnUiThread {
                         disableNfcReaderMode()
                         onStateChanged()
-                        showActivationDialog()
+                        if (showDialogWhenMissing) {
+                            showActivationDialog()
+                        }
                     }
                 }
             } catch (e: Exception) {
-                clearActivation()
+                if (clearOnNetworkFailure) {
+                    clearActivation()
+                }
                 activity.runOnUiThread {
-                    disableNfcReaderMode()
                     onStateChanged()
-                    showActivationDialog()
-                    toast("网络校验失败: ${readableError(e)}")
+                    if (!isActivated && showDialogWhenMissing) {
+                        disableNfcReaderMode()
+                        showActivationDialog()
+                        toast("网络校验失败: ${readableError(e)}")
+                    }
                 }
             } finally {
                 activationCheckRunning = false
             }
         }.start()
+    }
+
+    private fun JSONObject.putClientInfo(): JSONObject {
+        return put("appVersion", BuildConfig.VERSION_NAME)
+            .put("deviceModel", deviceModel())
+    }
+
+    private fun deviceModel(): String {
+        return listOf(
+            Build.MANUFACTURER,
+            Build.BRAND,
+            Build.MODEL,
+            "Android ${Build.VERSION.RELEASE}",
+            "SDK ${Build.VERSION.SDK_INT}"
+        )
+            .map { it.orEmpty().trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .joinToString(" / ")
+            .take(160)
     }
 
     private fun markActivated(verifiedAt: String) {

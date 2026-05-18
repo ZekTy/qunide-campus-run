@@ -1,6 +1,7 @@
 package com.example.campusrunner.service
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -14,6 +15,7 @@ import android.location.LocationManager
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
+import android.os.PowerManager
 import android.os.SystemClock
 import android.util.Log
 import androidx.core.app.ActivityCompat
@@ -45,6 +47,8 @@ class MockLocationService : Service() {
     private var pausedAtMillis: Long = 0L
     private var totalPausedMillis: Long = 0L
     private var lastPushedLocation: SimulatedLocation? = null
+    private var consecutivePushFailures: Int = 0
+    private var wakeLock: PowerManager.WakeLock? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -53,24 +57,42 @@ class MockLocationService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        when (intent?.action) {
-            ACTION_START_POINT -> startPoint(
+        return when (intent?.action) {
+            ACTION_START_POINT -> {
+                startPoint(
                 lat = intent.getDoubleExtra(EXTRA_LAT, 0.0),
                 lng = intent.getDoubleExtra(EXTRA_LNG, 0.0)
-            )
+                )
+                START_REDELIVER_INTENT
+            }
 
-            ACTION_START_ROUTE -> startRoute(
-                routeJson = intent.getStringExtra(EXTRA_ROUTE_JSON).orEmpty(),
-                speedMps = intent.getDoubleExtra(EXTRA_SPEED_MPS, 0.0),
-                closeLoop = intent.getBooleanExtra(EXTRA_CLOSE_LOOP, false),
-                loopCount = intent.getIntExtra(EXTRA_LOOP_COUNT, 1).coerceAtLeast(1)
-            )
+            ACTION_START_ROUTE -> {
+                startRoute(
+                    routeJson = intent.getStringExtra(EXTRA_ROUTE_JSON).orEmpty(),
+                    speedMps = intent.getDoubleExtra(EXTRA_SPEED_MPS, 0.0),
+                    closeLoop = intent.getBooleanExtra(EXTRA_CLOSE_LOOP, false),
+                    loopCount = intent.getIntExtra(EXTRA_LOOP_COUNT, 1).coerceAtLeast(1)
+                )
+                START_REDELIVER_INTENT
+            }
 
-            ACTION_PAUSE -> pauseMocking()
-            ACTION_RESUME -> resumeMocking()
-            ACTION_STOP -> stopMocking()
+            ACTION_PAUSE -> {
+                pauseMocking()
+                START_STICKY
+            }
+
+            ACTION_RESUME -> {
+                resumeMocking()
+                START_STICKY
+            }
+
+            ACTION_STOP -> {
+                stopMocking()
+                START_NOT_STICKY
+            }
+
+            else -> if (isRunning) START_STICKY else START_NOT_STICKY
         }
-        return START_STICKY
     }
 
     override fun onDestroy() {
@@ -148,10 +170,12 @@ class MockLocationService : Service() {
         }
         activeProviders = readyProviders
 
+        acquireWakeLock()
         startedAtMillis = System.currentTimeMillis()
         pausedAtMillis = 0L
         totalPausedMillis = 0L
         lastPushedLocation = locationProvider()
+        consecutivePushFailures = 0
         isRunning = true
         isPaused = false
         startForeground(NOTIFICATION_ID, buildNotification(notificationText))
@@ -168,9 +192,17 @@ class MockLocationService : Service() {
                 }
                 val pushed = activeProviders.count { provider -> pushLocation(provider, loc) }
                 if (pushed == 0) {
-                    Log.w(TAG, "No mock providers accepted location; stopping mock loop")
-                    stopMocking()
-                    return@launch
+                    consecutivePushFailures += 1
+                    Log.w(TAG, "No mock providers accepted location; attempting recovery #$consecutivePushFailures")
+                    recoverProviders()
+                    if (consecutivePushFailures >= MAX_PROVIDER_RECOVERY_ATTEMPTS) {
+                        Log.w(TAG, "Mock provider recovery failed too many times; stopping mock loop")
+                        stopMocking()
+                        return@launch
+                    }
+                } else {
+                    consecutivePushFailures = 0
+                    LocationCache.save(this@MockLocationService, RoutePoint(loc.latWgs84, loc.lngWgs84))
                 }
                 delay(1000L)
             }
@@ -198,7 +230,9 @@ class MockLocationService : Service() {
         pausedAtMillis = 0L
         totalPausedMillis = 0L
         lastPushedLocation = null
+        consecutivePushFailures = 0
         removeActiveProviders()
+        releaseWakeLock()
         stopForeground(STOP_FOREGROUND_REMOVE)
         if (stopService) {
             stopSelf()
@@ -240,8 +274,17 @@ class MockLocationService : Service() {
         runCatching { locationManager.removeTestProvider(provider) }
     }
 
+    private fun recoverProviders() {
+        val restoredProviders = PROVIDERS.filter { setupProvider(it) }
+        if (restoredProviders.isNotEmpty()) {
+            activeProviders = restoredProviders
+            lastPushedLocation?.let { location ->
+                activeProviders.forEach { provider -> pushLocation(provider, location) }
+            }
+        }
+    }
+
     private fun pushLocation(provider: String, simulated: SimulatedLocation): Boolean {
-        LocationCache.save(this, RoutePoint(simulated.latWgs84, simulated.lngWgs84))
         val location = Location(provider).apply {
             latitude = simulated.latWgs84
             longitude = simulated.lngWgs84
@@ -261,6 +304,26 @@ class MockLocationService : Service() {
         }.onFailure {
             Log.w(TAG, "Failed to push mock location to $provider", it)
         }.isSuccess
+    }
+
+    @SuppressLint("WakelockTimeout")
+    private fun acquireWakeLock() {
+        if (wakeLock?.isHeld == true) return
+        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+        wakeLock = powerManager.newWakeLock(
+            PowerManager.PARTIAL_WAKE_LOCK,
+            "$packageName:MockLocationKeepAlive"
+        ).apply {
+            setReferenceCounted(false)
+            acquire()
+        }
+    }
+
+    private fun releaseWakeLock() {
+        runCatching {
+            wakeLock?.takeIf { it.isHeld }?.release()
+        }
+        wakeLock = null
     }
 
     private fun buildNotification(text: String): Notification {
@@ -332,6 +395,7 @@ class MockLocationService : Service() {
         private const val CHANNEL_ID = "mock_location"
         private const val NOTIFICATION_ID = 2201
         private const val TAG = "MockLocationService"
+        private const val MAX_PROVIDER_RECOVERY_ATTEMPTS = 5
         private val PROVIDERS = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
 
         @Volatile

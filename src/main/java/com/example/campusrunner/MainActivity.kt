@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.Location
 import android.location.LocationManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
@@ -80,6 +81,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -132,6 +134,8 @@ import com.example.campusrunner.service.MockPermission
 import com.example.campusrunner.ui.CampusMapView
 import com.example.campusrunner.ui.MapController
 import com.example.campusrunner.ui.MarkerKind
+import com.example.campusrunner.update.AppUpdateChecker
+import com.example.campusrunner.update.AppUpdateResult
 import kotlinx.coroutines.delay
 import java.util.Locale
 import kotlin.math.PI
@@ -141,6 +145,13 @@ import kotlin.math.sin
 
 private const val STARTUP_AGREEMENT_PREFS_NAME = "startup_agreement_prefs"
 private const val KEY_INITIAL_LAUNCH_HANDLED = "initial_launch_handled"
+
+private sealed interface UpdateGateState {
+    data object Checking : UpdateGateState
+    data object UpToDate : UpdateGateState
+    data class Required(val result: AppUpdateResult) : UpdateGateState
+    data class Failed(val message: String) : UpdateGateState
+}
 
 class MainActivity : ComponentActivity() {
     private lateinit var repository: RouteRepository
@@ -163,7 +174,7 @@ class MainActivity : ComponentActivity() {
     private var nfcStatusState = mutableStateOf("")
     private var nfcLinkState = mutableStateOf("")
     private var startupAgreementVisibleState = mutableStateOf(false)
-    private var skipFirstResumeAgreement = false
+    private var updateGateState = mutableStateOf<UpdateGateState>(UpdateGateState.Checking)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -171,12 +182,12 @@ class MainActivity : ComponentActivity() {
         userSettings = UserSettings(this)
         val showStartupAgreement = shouldShowStartupAgreement(savedInstanceState)
         startupAgreementVisibleState.value = showStartupAgreement
-        skipFirstResumeAgreement = true
         nfcLauncher = NfcLauncherController(this, ::refreshNfcState)
         routesState.value = repository.getRoutes()
         mapProviderState.value = userSettings.mapProvider
         refreshState()
         nfcLauncher.onCreate()
+        checkForUpdates()
 
         setContent {
             CampusRunnerTheme {
@@ -210,11 +221,27 @@ class MainActivity : ComponentActivity() {
                     onSaveRoute = ::saveRoute,
                     onLocateMe = ::lastKnownRoutePoint
                 )
-                if (startupAgreementVisibleState.value) {
-                    StartupAgreementDialog(
-                        onAccept = { startupAgreementVisibleState.value = false },
+                when (val updateState = updateGateState.value) {
+                    UpdateGateState.Checking -> UpdateCheckingDialog()
+                    is UpdateGateState.Failed -> UpdateCheckFailedDialog(
+                        message = updateState.message,
+                        onRetry = ::checkForUpdates,
                         onExit = { finish() }
                     )
+
+                    is UpdateGateState.Required -> ForceUpdateDialog(
+                        latestVersion = updateState.result.latestVersion,
+                        message = updateState.result.message,
+                        onOpenRelease = { openExternalUrl(updateState.result.releaseUrl) },
+                        onRetry = ::checkForUpdates
+                    )
+
+                    UpdateGateState.UpToDate -> if (startupAgreementVisibleState.value) {
+                        StartupAgreementDialog(
+                            onAccept = { startupAgreementVisibleState.value = false },
+                            onExit = { finish() }
+                        )
+                    }
                 }
             }
         }
@@ -224,11 +251,6 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         refreshState()
         nfcLauncher.onResume()
-        if (skipFirstResumeAgreement) {
-            skipFirstResumeAgreement = false
-        } else if (shouldShowStartupAgreement(null)) {
-            startupAgreementVisibleState.value = true
-        }
     }
 
     override fun onPause() {
@@ -249,6 +271,36 @@ class MainActivity : ComponentActivity() {
         }
 
         return !isFreshInstallFirstLaunch
+    }
+
+    private fun checkForUpdates() {
+        updateGateState.value = UpdateGateState.Checking
+        Thread {
+            try {
+                val result = AppUpdateChecker.checkLatest()
+                runOnUiThread {
+                    updateGateState.value = if (result.updateRequired) {
+                        UpdateGateState.Required(result)
+                    } else {
+                        UpdateGateState.UpToDate
+                    }
+                }
+            } catch (e: Exception) {
+                runOnUiThread {
+                    updateGateState.value = UpdateGateState.Failed(
+                        e.message?.takeIf { it.isNotBlank() } ?: e.javaClass.simpleName
+                    )
+                }
+            }
+        }.start()
+    }
+
+    private fun openExternalUrl(url: String) {
+        runCatching {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        }.onFailure {
+            Toast.makeText(this, "无法打开更新页面", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun requestRuntimePermissions() {
@@ -745,6 +797,89 @@ private fun HomeScreen(
             }
         )
     }
+}
+
+@Composable
+private fun UpdateCheckingDialog() {
+    AlertDialog(
+        onDismissRequest = {},
+        title = { Text("正在检查更新") },
+        text = {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                CircularProgressIndicator(modifier = Modifier.size(26.dp), strokeWidth = 3.dp)
+                Text("正在确认 GitHub 最新版本，请稍候。", color = MiuixSkin.TextMuted)
+            }
+        },
+        confirmButton = {}
+    )
+}
+
+@Composable
+private fun UpdateCheckFailedDialog(
+    message: String,
+    onRetry: () -> Unit,
+    onExit: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = {},
+        title = { Text("无法检查更新") },
+        text = {
+            Text(
+                text = "需要确认当前版本是否为最新版后才能进入。\n\n$message",
+                color = MiuixSkin.TextMuted
+            )
+        },
+        confirmButton = {
+            Button(onClick = onRetry) {
+                Text("重新检查")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onExit) {
+                Text("退出")
+            }
+        }
+    )
+}
+
+@Composable
+private fun ForceUpdateDialog(
+    latestVersion: String,
+    message: String,
+    onOpenRelease: () -> Unit,
+    onRetry: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = {},
+        title = { Text("发现新版本") },
+        text = {
+            Text(
+                text = buildString {
+                    append("当前版本不是最新版，请更新到 v")
+                    append(latestVersion)
+                    append(" 后继续使用。")
+                    if (message.isNotBlank()) {
+                        append("\n\n")
+                        append(message)
+                    }
+                },
+                color = MiuixSkin.TextMuted
+            )
+        },
+        confirmButton = {
+            Button(onClick = onOpenRelease) {
+                Text("前往 GitHub")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onRetry) {
+                Text("我已更新，重新检查")
+            }
+        }
+    )
 }
 
 @Composable
