@@ -19,10 +19,16 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalAnimationApi
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
@@ -37,15 +43,18 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
@@ -92,14 +101,12 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Shapes
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.Typography
-import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -118,7 +125,9 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.example.campusrunner.data.LocationCache
 import com.example.campusrunner.data.MapProvider
@@ -134,6 +143,8 @@ import com.example.campusrunner.service.MockPermission
 import com.example.campusrunner.ui.CampusMapView
 import com.example.campusrunner.ui.MapController
 import com.example.campusrunner.ui.MarkerKind
+import com.example.campusrunner.ui.theme.CampusRunnerTheme
+import com.example.campusrunner.ui.theme.MiuixSkin
 import com.example.campusrunner.update.AppUpdateChecker
 import com.example.campusrunner.update.AppUpdateResult
 import kotlinx.coroutines.delay
@@ -513,7 +524,7 @@ private fun CampusRunnerApp(
 ) {
     var screen by remember { mutableStateOf(Screen.HOME) }
     var editingRoute by remember { mutableStateOf<SavedRoute?>(null) }
-    var speedText by remember { mutableStateOf(SpeedPreset.RUN.speedMps.toString()) }
+    var speedText by remember { mutableStateOf(formatNumber(SpeedPreset.FAST_PACE.speedMps)) }
     var closeLoop by remember { mutableStateOf(false) }
     var loopCountText by remember { mutableStateOf("1") }
     var pointLatInput by remember { mutableStateOf("39.904200") }
@@ -659,9 +670,11 @@ private fun HomeScreen(
 ) {
     var providerMenuExpanded by remember { mutableStateOf(false) }
     var showStatusDialog by remember { mutableStateOf(false) }
+    var overviewExpanded by remember { mutableStateOf(false) }
 
     Scaffold(
-        containerColor = MiuixSkin.Background,
+        containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets.safeDrawing,
         topBar = {
             TopAppBar(
                 title = {
@@ -670,14 +683,15 @@ private fun HomeScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MiuixSkin.Background,
-                    titleContentColor = MiuixSkin.Text,
-                    actionIconContentColor = MiuixSkin.Text
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.onBackground,
+                    actionIconContentColor = MaterialTheme.colorScheme.onBackground
                 ),
                 actions = {
                     PermissionDots(
                         hasLocationPermission = hasLocationPermission,
                         canMockLocation = canMockLocation,
+                        onClick = { overviewExpanded = !overviewExpanded },
                         onLongPress = { showStatusDialog = true }
                     )
                     Box {
@@ -705,15 +719,57 @@ private fun HomeScreen(
                 }
             )
         }
-    ) { padding ->
+        ) { padding ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .background(MiuixSkin.Background)
+                .background(MaterialTheme.colorScheme.background)
                 .padding(padding)
                 .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            contentPadding = PaddingValues(bottom = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            item {
+                AnimatedVisibility(
+                    visible = overviewExpanded,
+                    enter = expandVertically(
+                        expandFrom = Alignment.Top,
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioNoBouncy,
+                            stiffness = Spring.StiffnessMediumLow
+                        )
+                    ) + scaleIn(
+                        initialScale = 0.94f,
+                        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 0f),
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioLowBouncy,
+                            stiffness = Spring.StiffnessMediumLow
+                        )
+                    ) + fadeIn(),
+                    exit = shrinkVertically(
+                        shrinkTowards = Alignment.Top,
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioNoBouncy,
+                            stiffness = Spring.StiffnessMedium
+                        )
+                    ) + scaleOut(
+                        targetScale = 0.94f,
+                        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 0f)
+                    ) + fadeOut()
+                ) {
+                    HomeOverviewPanel(
+                        hasLocationPermission = hasLocationPermission,
+                        canMockLocation = canMockLocation,
+                        isServiceRunning = isServiceRunning,
+                        isServicePaused = isServicePaused,
+                        isNfcActivated = isNfcActivated,
+                        routesCount = routes.size,
+                        mapProvider = mapProvider,
+                        onShowStatus = { showStatusDialog = true }
+                    )
+                }
+            }
+
             item {
                 PointSimulationCard(
                     latInput = pointLatInput,
@@ -796,6 +852,137 @@ private fun HomeScreen(
                 }
             }
         )
+    }
+}
+
+@Composable
+private fun HomeOverviewPanel(
+    hasLocationPermission: Boolean,
+    canMockLocation: Boolean,
+    isServiceRunning: Boolean,
+    isServicePaused: Boolean,
+    isNfcActivated: Boolean,
+    routesCount: Int,
+    mapProvider: MapProvider,
+    onShowStatus: () -> Unit
+) {
+    val readyForMock = hasLocationPermission && canMockLocation
+    val runLabel = when {
+        isServicePaused -> "模拟暂停"
+        isServiceRunning -> "模拟运行中"
+        else -> "待命"
+    }
+    val runTone = when {
+        isServicePaused -> MiuixSkin.Warning
+        isServiceRunning -> MiuixSkin.Success
+        else -> MiuixSkin.Primary
+    }
+
+    MiuixCard(containerColor = MiuixSkin.SurfaceElevated) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "控制台",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        "先确认状态，再启动模拟",
+                        color = MiuixSkin.TextMuted,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+                Surface(
+                    color = runTone.copy(alpha = 0.13f),
+                    contentColor = runTone,
+                    shape = MiuixSkin.PillShape,
+                    modifier = Modifier.clickable(onClick = onShowStatus)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(7.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .background(runTone, CircleShape)
+                        )
+                        Text(runLabel, style = MaterialTheme.typography.labelLarge)
+                    }
+                }
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                OverviewMetric(
+                    label = "权限",
+                    value = if (readyForMock) "就绪" else "待设置",
+                    ok = readyForMock,
+                    modifier = Modifier.weight(1f)
+                )
+                OverviewMetric(
+                    label = "授权",
+                    value = if (isNfcActivated) "已验证" else "未验证",
+                    ok = isNfcActivated,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                OverviewMetric(
+                    label = "路线",
+                    value = "${routesCount} 条",
+                    ok = routesCount > 0,
+                    modifier = Modifier.weight(1f)
+                )
+                OverviewMetric(
+                    label = "地图",
+                    value = mapProvider.label,
+                    ok = true,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun OverviewMetric(
+    label: String,
+    value: String,
+    ok: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        color = MiuixSkin.SurfaceContainer,
+        shape = MiuixSkin.FieldShape,
+        modifier = modifier
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 11.dp),
+            verticalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Box(
+                    modifier = Modifier
+                        .size(7.dp)
+                        .background(if (ok) MiuixSkin.Success else MiuixSkin.Warning, CircleShape)
+                )
+                Text(label, color = MiuixSkin.TextMuted, style = MaterialTheme.typography.labelMedium)
+            }
+            Text(
+                value,
+                color = MiuixSkin.Text,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 
@@ -920,15 +1107,19 @@ private fun StartupAgreementDialog(
 private fun PermissionDots(
     hasLocationPermission: Boolean,
     canMockLocation: Boolean,
+    onClick: () -> Unit,
     onLongPress: () -> Unit
 ) {
     Row(
         modifier = Modifier
-            .padding(end = 4.dp)
-            .pointerInput(hasLocationPermission, canMockLocation) {
-                detectTapGestures(onLongPress = { onLongPress() })
+            .padding(horizontal = 8.dp, vertical = 8.dp)
+            .pointerInput(hasLocationPermission, canMockLocation, onClick, onLongPress) {
+                detectTapGestures(
+                    onTap = { onClick() },
+                    onLongPress = { onLongPress() }
+                )
             },
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         StatusDot(hasLocationPermission)
@@ -978,19 +1169,21 @@ private fun FluidButton(
     val interactionSource = remember { MutableInteractionSource() }
     Button(
         onClick = onClick,
-        modifier = modifier.fluidPressScale(interactionSource),
+        modifier = modifier
+            .heightIn(min = 48.dp)
+            .fluidPressScale(interactionSource),
         enabled = enabled,
         interactionSource = interactionSource,
         shape = MiuixSkin.ActionShape,
         colors = ButtonDefaults.buttonColors(
-            containerColor = MiuixSkin.Primary,
-            contentColor = Color.White,
-            disabledContainerColor = MiuixSkin.DisabledContainer,
-            disabledContentColor = MiuixSkin.TextDisabled
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+            disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
         ),
         elevation = ButtonDefaults.buttonElevation(
-            defaultElevation = 0.dp,
-            pressedElevation = 0.dp,
+            defaultElevation = 2.dp,
+            pressedElevation = 5.dp,
             disabledElevation = 0.dp
         ),
         content = content
@@ -1007,16 +1200,22 @@ private fun FluidOutlinedButton(
     val interactionSource = remember { MutableInteractionSource() }
     OutlinedButton(
         onClick = onClick,
-        modifier = modifier.fluidPressScale(interactionSource),
+        modifier = modifier
+            .heightIn(min = 48.dp)
+            .fluidPressScale(interactionSource),
         enabled = enabled,
         interactionSource = interactionSource,
         shape = MiuixSkin.ActionShape,
-        border = BorderStroke(1.dp, if (enabled) MiuixSkin.Border else MiuixSkin.Border.copy(alpha = 0.55f)),
+        border = BorderStroke(
+            1.dp,
+            if (enabled) MaterialTheme.colorScheme.outline.copy(alpha = 0.45f)
+            else MaterialTheme.colorScheme.outline.copy(alpha = 0.28f)
+        ),
         colors = ButtonDefaults.outlinedButtonColors(
-            containerColor = MiuixSkin.SurfaceElevated,
-            contentColor = MiuixSkin.Primary,
-            disabledContainerColor = MiuixSkin.DisabledContainer,
-            disabledContentColor = MiuixSkin.TextDisabled
+            containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp),
+            contentColor = MaterialTheme.colorScheme.primary,
+            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.62f),
+            disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
         ),
         content = content
     )
@@ -1036,8 +1235,8 @@ private fun FluidCircleButton(
         color = if (enabled) containerColor else MiuixSkin.DisabledContainer,
         contentColor = if (enabled) contentColor else MiuixSkin.TextDisabled,
         shape = CircleShape,
-        tonalElevation = 0.dp,
-        shadowElevation = 0.dp,
+        tonalElevation = 4.dp,
+        shadowElevation = 1.dp,
         modifier = modifier
             .fluidPressScale(interactionSource)
             .clickable(
@@ -1056,14 +1255,15 @@ private fun FluidCircleButton(
 @Composable
 private fun MiuixCard(
     modifier: Modifier = Modifier,
-    containerColor: Color = MiuixSkin.Surface,
+    containerColor: Color = MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp),
     content: @Composable () -> Unit
 ) {
     Card(
         modifier = modifier,
         shape = MiuixSkin.CardShape,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.22f)),
         colors = CardDefaults.cardColors(containerColor = containerColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
     ) {
         content()
     }
@@ -1079,7 +1279,8 @@ private fun MiuixTextField(
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     singleLine: Boolean = false,
     minLines: Int = 1,
-    maxLines: Int = Int.MAX_VALUE
+    maxLines: Int = Int.MAX_VALUE,
+    textStyle: TextStyle = MaterialTheme.typography.bodyLarge
 ) {
     OutlinedTextField(
         value = value,
@@ -1090,6 +1291,7 @@ private fun MiuixTextField(
         singleLine = singleLine,
         minLines = minLines,
         maxLines = maxLines,
+        textStyle = textStyle,
         shape = MiuixSkin.FieldShape,
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = MiuixSkin.Primary,
@@ -1342,7 +1544,7 @@ private fun SpeedSelector(
                 onClick = { onSpeedTextChange(formatNumber(preset.speedMps)) },
                 modifier = Modifier
                     .weight(1f)
-                    .height(56.dp)
+                    .height(64.dp)
             )
         }
         MiuixTextField(
@@ -1351,9 +1553,10 @@ private fun SpeedSelector(
             label = "m/s",
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             singleLine = true,
+            textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 17.sp),
             modifier = Modifier
-                .weight(1f)
-                .height(56.dp)
+                .weight(0.82f)
+                .height(64.dp)
         )
     }
 }
@@ -1381,12 +1584,23 @@ private fun SpeedPresetButton(
             )
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 6.dp),
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, maxLines = 1)
-            Text("${formatNumber(speedMps)}m/s", style = MaterialTheme.typography.labelSmall, maxLines = 1)
+            Text(
+                label,
+                style = MaterialTheme.typography.labelMedium.copy(fontSize = 11.sp),
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                "${formatNumber(speedMps)}m/s",
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                maxLines = 1,
+                overflow = TextOverflow.Clip
+            )
         }
     }
 }
@@ -2084,63 +2298,4 @@ private fun offsetMeters(origin: RoutePoint, eastMeters: Double, northMeters: Do
         latWgs84 = origin.latWgs84 + Math.toDegrees(dLat),
         lngWgs84 = origin.lngWgs84 + Math.toDegrees(dLng)
     )
-}
-
-@Composable
-private fun CampusRunnerTheme(content: @Composable () -> Unit) {
-    val baseTypography = Typography()
-    MaterialTheme(
-        colorScheme = lightColorScheme(
-            primary = MiuixSkin.Primary,
-            onPrimary = Color.White,
-            primaryContainer = MiuixSkin.PrimarySoft,
-            secondary = MiuixSkin.Success,
-            background = MiuixSkin.Background,
-            onBackground = MiuixSkin.Text,
-            surface = MiuixSkin.Surface,
-            onSurface = MiuixSkin.Text,
-            surfaceVariant = MiuixSkin.SurfaceContainer,
-            outline = MiuixSkin.Border,
-            error = MiuixSkin.Danger
-        ),
-        typography = baseTypography.copy(
-            titleLarge = baseTypography.titleLarge.copy(fontWeight = FontWeight.Bold),
-            titleMedium = baseTypography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-            labelLarge = baseTypography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
-        ),
-        shapes = Shapes(
-            extraSmall = RoundedCornerShape(10.dp),
-            small = RoundedCornerShape(14.dp),
-            medium = RoundedCornerShape(20.dp),
-            large = RoundedCornerShape(28.dp),
-            extraLarge = RoundedCornerShape(32.dp)
-        ),
-        content = content
-    )
-}
-
-private object MiuixSkin {
-    const val PrimaryHex = "#3482FF"
-    const val SuccessHex = "#36D167"
-
-    val Primary = Color(0xFF3482FF)
-    val PrimarySoft = Color(0xFFEAF2FF)
-    val Success = Color(0xFF36D167)
-    val Warning = Color(0xFFFFA726)
-    val Danger = Color(0xFFFF4D4F)
-    val Background = Color(0xFFF4F6FB)
-    val Surface = Color(0xFFFFFFFF)
-    val SurfaceElevated = Color(0xFFFDFEFF)
-    val SurfaceFloating = Color(0xF4FFFFFF)
-    val SurfaceContainer = Color(0xFFF0F3F9)
-    val Border = Color(0xFFDDE3EE)
-    val Text = Color(0xFF111827)
-    val TextMuted = Color(0xFF667085)
-    val TextDisabled = Color(0xFF98A2B3)
-    val DisabledContainer = Color(0xFFE8ECF3)
-
-    val CardShape = RoundedCornerShape(24.dp)
-    val FieldShape = RoundedCornerShape(16.dp)
-    val ActionShape = RoundedCornerShape(18.dp)
-    val FloatingShape = RoundedCornerShape(26.dp)
 }
